@@ -12,7 +12,7 @@ const httpServer = createServer(app)
 
 // Configure CORS for Socket.IO
 const allowedOrigins = [
-  process.env.CLIENT_URL,
+  process.env.FRONTEND_URL || process.env.CLIENT_URL,  // Support both variable names
   "http://localhost:5173",
   "http://localhost:5174",
   "http://127.0.0.1:5173",
@@ -33,8 +33,9 @@ const io = new Server(httpServer, {
       }
     },
     methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true,
+    credentials: false,  // Changed to false to match frontend
   },
+  transports: ['websocket', 'polling']  // Ensure both transports work
 })
 
 // Middleware
@@ -50,7 +51,7 @@ app.use(cors({
       callback(null, true) // Allow anyway for development
     }
   },
-  credentials: true,
+  credentials: false,  // Changed to false to match frontend
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
 }))
 app.use(express.json({ limit: '10mb' })) // Increase payload limit for workspace data
@@ -87,6 +88,27 @@ app.use("/api/collaboration-requests", collaborationRequestRoutes)
 
 app.get("/", (req, res) => {
   res.send("Collaboration Board Server Running")
+})
+
+// Health check endpoint with DB status
+app.get("/api/health", (req, res) => {
+  const dbStatus = mongoose.connection.readyState
+  const statusMap = {
+    0: 'disconnected',
+    1: 'connected',
+    2: 'connecting',
+    3: 'disconnecting'
+  }
+  
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    database: {
+      status: statusMap[dbStatus] || 'unknown',
+      connected: dbStatus === 1
+    },
+    server: 'running'
+  })
 })
 
 // Socket.io Events
